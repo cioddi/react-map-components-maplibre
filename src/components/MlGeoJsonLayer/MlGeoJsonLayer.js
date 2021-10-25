@@ -34,11 +34,10 @@ const MlGeoJsonLayer = (props) => {
     let _componentId = componentId.current;
     return () => {
       // This is the cleanup function, it is called when this react component is removed from react-dom
-      if(transitionTimeoutRef.current){
-        clearTimeout(transitionTimeoutRef.current)
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
       }
       if (mapRef.current) {
-
         mapRef.current.cleanup(_componentId);
 
         mapRef.current = null;

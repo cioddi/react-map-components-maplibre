@@ -4,48 +4,48 @@ import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "./MlLayerSwitcher.css";
 //External
-import React, { useEffect, useContext, useState, useRef } from "react";
+import { useEffect, useContext, useState } from "react";
 import PropTypes from "prop-types";
 import { useTranslation } from "react-i18next";
-import { CardMedia, Card, CardContent, Typography, Fab, Box, Fade, Popper } from "@mui/material";
-import LayersIcon from "@mui/icons-material/Layers";
+import { Card, CardContent, Typography,  Box } from "@mui/material";
 //Internal
 import { MapContext } from "react-map-components-core";
-import ImageLoader from "../../ui_components/ImageLoader";
 import LayerBox from "./components/LayerBox";
 import Divider from "@mui/material/Divider";
-import useMap from "../../hooks/useMap";
+import useMapState from "../../hooks/useMapState";
+
 /**
  * @component
  *
  *
  */
-const MlLayerSwitcher = (props) => {
-  // Use a useRef hook to reference the layer object to be able to access it later inside useEffect hooks
+const MlLayerSwitcher = ({ baseSourceConfig, detaiLayerConfig, mapId = "map_1"} ) => {
+  
+  
   const mapContext = useContext(MapContext);
-  const showBaseSources = !!props?.baseSourceConfig?.active;
-  const showDetailLayer = !!props?.detaiLayerConfig?.active;
-
-  const baseSourceLayers = props?.baseSourceConfig?.layers || [];
-  const detaiLayers = props?.detaiLayerConfig?.layers || [];
-  const [showElement, setShowElement] = useState(false);
-  const [activeHighlight, setActiveHighlight] = useState(null);
+  const showBaseSources = !!baseSourceConfig?.layers?.length;
+  const showDetailLayer = !!detaiLayerConfig?.layers?.length;
+  const { layers } = useMapState({ mapId })
   const [activeLayers, setActiveLayers] = useState([]);
+  const [activeDetailLayers, setActiveDetailLayers] = useState([]);
+  const { t } = useTranslation();
 
-  const opener = useRef(null);
 
-  let className = "mllayerswitcher-layer-box";
 
-  const handleClick = ({ currentTarget }) => {
-    setShowElement((previousOpen) => !previousOpen);
-  };
+
+
+
+
 
   useEffect(() => {
     //Set base state to activate only first layer
     mapContext.map &&
-      baseSourceLayers.forEach((config, i) => {
+      baseSourceConfig.layers.forEach((config, i) => {
         const layers = getLayerListFromId(config.layerId);
         const visible = i === 0 ? "visible" : "none";
+        console.log(visible)
+        console.log(config.layerId)
+
         layers.forEach((layer) => {
           if (layer) {
             changeLayerState(layer, visible);
@@ -59,49 +59,57 @@ const MlLayerSwitcher = (props) => {
       // mapContext.getMap(props.mapId).removeLayer(layerRef.current);
       // check for the existence of map.style before calling getLayer or getSource
     };
-  }, []);
+  }, [mapContext.map]);
+
+
 
   useEffect(() => {
-    if (!mapContext.mapExists(props.mapId) || !baseSourceLayers) return;
-    baseSourceLayers.forEach((config, i) => {
-      const layers = getLayerListFromId(config.layerId);
-      const visible = i === 0 ? "visible" : "none";
-      layers.forEach((layer) => {
-        if (layer) {
-          changeLayerState(layer, visible);
-        }
-      });
-    });
-  }, [mapContext.mapIds, mapContext, props.mapId, baseSourceLayers]);
-
-  useMap(() => {
-    console.count(1);
+    console.log('123')
     if (mapContext.map?.style?._layers) {
-      setActiveLayers([]);
+
       let newactiveLayers = [];
-      baseSourceLayers.forEach((layerConfig) => {
+      let newactiveDetailLayers = [];
+      baseSourceConfig.layers.forEach((layerConfig) => {
         const layers = getLayerListFromId(layerConfig.layerId);
 
         layers.forEach((layer) => {
           const visibilty = mapContext.map?.getLayoutProperty(layer, "visibility");
-          if (layer.indexOf(mapContext.map?.baseLayers) !== -1) {
+          if (mapContext.map.baseLayers.indexOf(layer) !== -1) {
             layer = "styleBase";
           }
 
-          if (layer.indexOf(newactiveLayers) !== -1 && visibilty === "visible") {
+          if (newactiveLayers.indexOf(layer) === -1 && visibilty === "visible") {
             newactiveLayers.push(layer);
           }
         });
       });
-      newactiveLayers = Array.from(new Set(newactiveLayers));
-      console.log(newactiveLayers);
+      detaiLayerConfig.layers.forEach(({ layerId }) => {
+
+        const visibilty = mapContext.map?.getLayoutProperty(layerId, "visibility");
+        if (newactiveDetailLayers.indexOf(layerId) === -1 && visibilty === "visible") {
+          newactiveDetailLayers.push(layerId);
+        }
+      });
       setActiveLayers(newactiveLayers);
+
+      setActiveDetailLayers(newactiveDetailLayers);
     }
-  }, []);
+  }, [layers]);
 
   const getLayerListFromId = (id) => {
     return id === "styleBase" ? mapContext?.map.baseLayers : [id];
   };
+
+  const handleDetailLayerBoxClick = (layerId) => {
+    const cfg = detaiLayerConfig.layers.find((e) => e.layerId === layerId);
+    if (cfg.linkedTo) {
+      handleLayerBoxClick(cfg.linkedTo)
+    }
+    const nextVisiblityClickedLayer = mapContext?.map.getLayer(layerId)?.getLayoutProperty("visibility") === "visible"
+      ? "none"
+      : "visible";
+    changeLayerState(layerId, nextVisiblityClickedLayer);
+  }
 
   const handleLayerBoxClick = (id) => {
     let layers = getLayerListFromId(id);
@@ -110,7 +118,7 @@ const MlLayerSwitcher = (props) => {
         ? "none"
         : "visible";
 
-    baseSourceLayers.forEach((config, i) => {
+    baseSourceConfig.layers.forEach((config, i) => {
       let layers = getLayerListFromId(config.layerId);
       let visible = "none";
       if (config.layerId === id) {
@@ -135,93 +143,80 @@ const MlLayerSwitcher = (props) => {
 
   return (
     <>
-      <Fab
-        onClick={handleClick}
-        ref={opener}
-        variant="extended"
-        size="small"
-        color="primary"
-        aria-label="add"
-        sx={{ zIndex: 101, margin: "2rem" }}
-      >
-        <LayersIcon sx={{ mr: 1 }} />
-        Ebenen
-      </Fab>
 
-      <Popper
-        id={"layerSwitcher"}
-        open={showElement}
-        container={() => document.querySelector(".fullscreen_map")}
-        anchorEl={opener.current}
-        transition
-        style={{ zIndex: 101 }}
-        placement="right"
-      >
-        {({ TransitionProps }) => (
-          <Fade {...TransitionProps} timeout={350}>
-            <Card sx={{ zIndex: 101, position: "absolute", minWidth: "200px" }}>
-              {" "}
-              <CardContent>
-                {showBaseSources && (
-                  <Box sx={{ minHeight: "150px" }}>
-                    <Typography variant="h6">Map Type</Typography>
-                    <Divider />
-                    <Box sx={{ display: "flex", paddingTop: "1rem" }}>
-                      {baseSourceLayers.map(({ src, label, layerId }) => {
-                        const isActive = layerId.indexOf(activeLayers) !== -1;
-                        return (
-                          <LayerBox
-                            key={layerId}
-                            activeHighlight={activeHighlight}
-                            active={isActive}
-                            activeLayers={activeLayers}
-                            label={label}
-                            id={layerId}
-                            src={src}
-                            className={className}
-                            handleLayerBoxClick={() => {
-                              handleLayerBoxClick(layerId);
-                            }}
-                          />
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                )}
-                {!!detaiLayers?.length && (
-                  <Box sx={{ minHeight: "150px" }}>
-                    <Typography variant="h6">Map details</Typography>
-                    <Divider />
-                    <Box sx={{ display: "flex", paddingTop: "1rem" }}>
-                      {detaiLayers.map(({ src, label, layerId, active }) => {
-                        return (
-                          <LayerBox
-                            actve={active}
-                            label={label}
-                            id={layerId}
-                            key={layerId}
-                            src={src}
-                            className={className}
-                            handleLayerBoxClick={() => {
-                              handleLayerBoxClick(layerId);
-                            }}
-                          />
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Fade>
-        )}
-      </Popper>
+      <Card sx={{ zIndex: 101, position: "absolute", minWidth: "200px" }}>
+
+        <CardContent>
+          {showBaseSources && (
+            <Box sx={{ minHeight: "150px" }}>
+              <Typography variant="h6">{t(baseSourceConfig.label || "Map type")}</Typography>
+              <Divider />
+              <Box sx={{ display: "flex", paddingTop: "1rem" }}>
+                {baseSourceConfig.layers.map(({ src, label, layerId }) => {
+
+                  return (
+                    <LayerBox
+                      key={layerId}
+                      activeLayers={activeLayers}
+                      label={t(label)}
+                      id={layerId}
+                      src={src}
+                      handleLayerBoxClick={() => {
+                        handleLayerBoxClick(layerId);
+                      }}
+                    />
+                  );
+                })}
+              </Box>
+            </Box>
+          )}
+          {showDetailLayer && (
+            <Box sx={{ minHeight: "150px" }}>
+              <Typography variant="h6">{t("Map details")}</Typography>
+              <Divider />
+              <Box sx={{ display: "flex", paddingTop: "1rem" }}>
+                {detaiLayerConfig.layers.map(({ src, label, layerId }) => {
+                  return (
+                    <LayerBox
+                      activeLayers={activeDetailLayers}
+                      label={t(label)}
+                      id={layerId}
+                      key={layerId}
+                      src={src}
+                      handleLayerBoxClick={() => {
+                        handleDetailLayerBoxClick(layerId);
+                      }}
+                    />
+                  );
+                })}
+              </Box>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 };
 
 MlLayerSwitcher.propTypes = {
-  baseSourceConfig: PropTypes.object,
+  baseSourceConfig: PropTypes.shape({
+    label: PropTypes.string,
+    layers: PropTypes.arrayOf(PropTypes.shape({
+      layerId: PropTypes.string.isRequired,
+      src: PropTypes.string,
+      label : PropTypes.string.isRequired
+    }))
+  }),
+  detaiLayerConfig: PropTypes.shape({
+    label: PropTypes.string,
+    layers: PropTypes.arrayOf(PropTypes.shape({
+      layerId: PropTypes.string.isRequired,
+      src: PropTypes.string,
+      label : PropTypes.string.isRequired,
+      linkedTo: PropTypes.string
+    }))
+  }),
+  mapId: PropTypes.string
 };
 
 export default MlLayerSwitcher;

@@ -1,4 +1,4 @@
-import { React, useState } from "react";
+import { React, useEffect, useState } from "react";
 
 import { Box } from "@mui/system";
 import ImageLoader from "../../../ui_components/ImageLoader";
@@ -8,38 +8,49 @@ import ImageLoader from "../../../ui_components/ImageLoader";
  */
 const LayerBox = ({
   id,
-  activeHighlight,
-  active,
   activeLayers,
   label,
   handleLayerBoxClick,
   src,
-  className,
+  
 }) => {
-  className = (() => {
-    if (active) {
-      return `${className} active`;
-    }
-    return className;
-  })();
-  const [activeClassName, setActiveClassName] = useState();
+  
+  const [activeClassName, setActiveClassName] = useState('');
+  const [className, setClassName] = useState( "mllayerswitcher-layer-box "); 
+
   const width = "40px";
+  
+useEffect(()=>{
   console.log(activeLayers)
+  
+  const isActive = activeLayers?.indexOf(id) !== -1;
+  
+  if(isActive){
+    setClassName("mllayerswitcher-layer-box active ")
+  } else {
+    setClassName("mllayerswitcher-layer-box ")
+  }
+  
+  
+},[activeLayers])
+
   const handleHover = (event) => {
     
     if (event.type === "mouseenter") {
-      setActiveClassName(`${className} activeHighlight`);
+      setActiveClassName(`activeHighlight`);
     }
     if (event.type === "mouseleave") {
-      setActiveClassName(`${className}`);
+      setActiveClassName(``);
     }
+    
   };
 
   return (
     <>
       <Box
         key={id}
-        className={activeClassName}
+        className={activeClassName + ' '   + className}
+        
         sx={{
           width,
           height: "53px",

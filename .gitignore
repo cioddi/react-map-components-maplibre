@@ -37,3 +37,6 @@ yarn-error.log*
 
 /js-docs
 !/js-docs/server.js
+
+/docs
+!/docs/server.js

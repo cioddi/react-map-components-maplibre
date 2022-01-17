@@ -1,8 +1,8 @@
-import React, {useRef, useEffect, useContext, useState} from "react";
+import React, { useRef, useEffect, useContext, useState, useCallback } from "react";
 import PropTypes from "prop-types";
 
-import {MapContext} from "@mapcomponents/react-core";
-import {v4 as uuidv4} from "uuid";
+import { MapContext } from "@mapcomponents/react-core";
+import { v4 as uuidv4 } from "uuid";
 import useMapState from "../../hooks/useMapState";
 
 /**
@@ -19,20 +19,70 @@ const MlShareMapState = (props) => {
   const initializedRef = useRef(false);
   const mapRef = useRef(undefined);
   const [map, setMap] = useState(undefined);
+  const layersFromUrlParamsRef = useRef({});
   const componentId = useRef((props.idPrefix ? props.idPrefix : "MlShareMapState-") + uuidv4());
   const [isInitialState, setIsInitialState] = useState(true);
   const mapState = useMapState({
     watch: {
       viewport: false,
       layers: true,
-      sources: false
+      sources: false,
     },
     filter: {
-      includeBaseLayers: false
-    }
-  })
+      includeBaseLayers: false,
+    },
+  });
+
+  const allStatesRestoredRef = useRef(false);
+  const restoredStatesRef = useRef({
+    viewport: {
+      center: false,
+      bearing: false,
+      pitch: false,
+      zoom: false,
+    },
+    layers: {
+      ...layersFromUrlParamsRef,
+    },
+  });
 
   const mapStateRef = useRef({});
+
+  const refreshUrlParameters = useCallback(() => {
+    let mapLayers = [];
+    for (let x in mapState.layers) {
+      mapLayers.push({
+        id: mapState.layers[x].id,
+        type: mapState.layers[x].type,
+        visible: mapState.layers[x].visible,
+      });
+    }
+    console.log("beep");
+    refreshMapState();
+    let urlParams = new URLSearchParams({
+      ...getCurrentUrlParameters(),
+      ...mapStateRef.current,
+      layers: JSON.stringify(mapLayers),
+    });
+    console.log(JSON.parse(Object.fromEntries(urlParams).layers));
+    JSON.parse(Object.fromEntries(urlParams).layers).forEach((el, i, arr) => {
+      layersFromUrlParamsRef.current[el.id] = false;
+    });
+    console.log(layersFromUrlParamsRef.current);
+
+    let currentParams = new URLSearchParams(window.location.search);
+    console.log(urlParams.toString());
+    console.log(currentParams.toString());
+    console.log(mapState);
+    checkRestorationStates(mapState.layers);
+    if (urlParams.toString() !== currentParams.toString()) {
+      window.history.pushState(
+        { ...mapStateRef.current },
+        document.title,
+        "?" + urlParams.toString()
+      );
+    }
+  }, [mapState.layers]);
 
   useEffect(() => {
     let _componentId = componentId.current;
@@ -53,117 +103,101 @@ const MlShareMapState = (props) => {
   }, []);
 
   useEffect(() => {
+    if (!mapRef.current) return;
+
+    let _refreshUrlParameters = refreshUrlParameters;
+
+    mapRef.current.on("moveend", _refreshUrlParameters, componentId.current);
+
+    return () => {
+      mapRef.current.off("moveend", _refreshUrlParameters);
+    };
+  }, [refreshUrlParameters, map, props.active]);
+
+  useEffect(() => {
     if (!mapContext.mapExists(props.mapId) || initializedRef.current) return;
     // the MapLibre-gl instance (mapContext.getMap(props.mapId)) is accessible here
     // initialize the layer and add it to the MapLibre-gl instance or do something else with it
     initializedRef.current = true;
     mapRef.current = mapContext.getMap(props.mapId);
     setMap(mapRef.current);
-
+    console.log("as");
     const currentUrlParams = getCurrentUrlParameters();
+    console.log(currentUrlParams);
     if (currentUrlParams.lat && currentUrlParams.lng) {
-      mapStateRef.current.lat = currentUrlParams.lat;
-      mapStateRef.current.lng = currentUrlParams.lng;
-      mapStateRef.current.zoom = currentUrlParams.zoom;
-      mapRef.current.setZoom(mapStateRef.current.zoom);
+      mapStateRef.current = currentUrlParams;
+      restoreMapState();
     }
   }, [mapContext.mapIds, mapContext, props.mapId, props.active]);
 
   useEffect(() => {
-    if (!map) return;
-    if(!mapState.layers) return;
-    if(!isInitialState) return;
+    if (!mapState?.layers?.length) return;
+    if (allStatesRestoredRef.current) return;
 
-    const currentUrlParams = getCurrentUrlParameters()
+    const currentUrlParams = getCurrentUrlParameters();
+    console.log(allStatesRestoredRef.current);
 
-    if(currentUrlParams.layers) {
+    if (currentUrlParams.layers) {
       for (let x in currentUrlParams.layers) {
-        mapRef.current.getLayer(currentUrlParams.layers[x].id).visibility = currentUrlParams.layers[x].visible ? "visible" : "none"
-        mapRef.current.getLayer(currentUrlParams.layers[x].id).type = currentUrlParams.layers[x].type
+        mapRef.current
+          ?.getLayer(currentUrlParams.layers[x].id)
+          ?.setLayoutProperty(
+            "visibility",
+            currentUrlParams.layers[x].visible ? "visible" : "none"
+          );
       }
     }
-
-  }, [mapState.layers, props.mapId, props.active])
+  }, [mapState.layers, props.mapId, props.active]);
 
   useEffect(() => {
     if (!map) return;
     if (!mapState.layers) return;
 
     if (props.active) {
-      setIsInitialState(false)
-      map.on(
-        "moveend",
-        () => {
-          let mapLayers = []
-          for (let x in mapState.layers) {
-            mapLayers.push(new URLSearchParams({
-              id: mapState.layers[x].id,
-              type: mapState.layers[x].type,
-              visible: mapState.layers[x].visible
-            }))
-          }
-          refreshMapState();
-          let urlParams = new URLSearchParams({
-            ...getCurrentUrlParameters(),
-            ...mapStateRef.current,
-            layers : mapLayers
-          });
-
-          let currentParams = new URLSearchParams(window.location.search);
-          if (urlParams.toString() !== currentParams.toString()) {
-            window.history.pushState(
-              {...mapStateRef.current},
-              document.title,
-              "?" + urlParams.toString()
-            );
-          }
-        },
-        componentId.current
-      );
+      setIsInitialState(false);
     } else {
       map.cleanup(componentId.current);
     }
-  }, [props.active, map]);
+  }, [props.active, map, mapState.layers]);
 
   const getCurrentUrlParameters = () => {
-    let parameterObject = Object.fromEntries(new URLSearchParams(window.location.search))
+    let currentParams = Object.fromEntries(new URLSearchParams(window.location.search));
+    currentParams.layers = JSON.parse(currentParams?.layers ? currentParams.layers : "[]");
 
-    if(window.location.search.indexOf("layers")!==-1) {
-      let layerParamString = window.location.search.substring(window.location.search.indexOf("layers"))
-      layerParamString = layerParamString.substring(0, (layerParamString.indexOf("&")!==-1) ? layerParamString.indexOf("&") : layerParamString.length)
-      parameterObject = Object.fromEntries(new URLSearchParams(window.location.search.replace(layerParamString, "")))
-      let layerParams = layerParamString.substring(7)
-      layerParams = layerParams.replaceAll("%3D", "=")
-      layerParams = layerParams.replaceAll("%26", "&")
-      layerParams = layerParams.replaceAll("%2C", ",")
-
-      if (layerParams.indexOf(",")) {
-        layerParams = layerParams.split(",")
-      } else {
-        layerParams = [layerParams]
-      }
-
-      for (let x in layerParams) {
-        let layerState = layerParams[x].split("&")
-        layerParams[x] = {}
-        for (let y in layerState) {
-          layerParams[x][layerState[y].split("=")[0]] = layerState[y].split("=")[1]
-        }
-      }
-      parameterObject["layers"] = layerParams
-    }
-    return parameterObject
+    return currentParams;
   };
 
   const refreshMapState = () => {
     mapStateRef.current.lat = mapRef.current.getCenter().lat;
     mapStateRef.current.lng = mapRef.current.getCenter().lng;
     mapStateRef.current.zoom = mapRef.current.getZoom();
+    mapStateRef.current.bearing = mapRef.current.getBearing();
+    mapStateRef.current.pitch = mapRef.current.getPitch();
+  };
+
+  const checkRestorationStates = (stateArray) => {
+    let tempArray = {};
+    stateArray.forEach((el, i, arr) => {
+      if (!arr[el.key]) tempArray[el.key] = true;
+    });
+  };
+
+  const restoreMapState = () => {
+    if (!restoredStatesRef.current.viewport.center) {
+      restoredStatesRef.current.viewport.center = true;
+      mapRef.current.setCenter([mapStateRef.current.lng, mapStateRef.current.lat]);
+      mapRef.current.setZoom(mapStateRef.current.zoom);
+      mapRef.current.setBearing(mapStateRef.current.bearing);
+      mapRef.current.setPitch(mapStateRef.current.pitch);
+    }
+
+    allStatesRestoredRef.current = true;
   };
 
   window.onpopstate = (event) => {
+    console.log(event.state);
     if (event.state && event.state.lng && event.state.lat && event.state.zoom) {
-      mapRef.current.easeTo({zoom: event.state.zoom, center: [event.state.lng, event.state.lat]});
+      mapRef.current.easeTo({ zoom: event.state.zoom, center: [event.state.lng, event.state.lat] });
     }
   };
 

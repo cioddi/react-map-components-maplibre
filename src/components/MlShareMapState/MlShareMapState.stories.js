@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import MlShareMapState from "./MlShareMapState";
 import mapContextDecorator from "../../decorators/MapContextDecorator";
 import useMapState from "../../hooks/useMapState";
+import useMap from "../../hooks/useMap";
 import Sidebar from "../../ui_components/Sidebar";
 import ListItem from "@mui/material/ListItem";
 import IconButton from "@mui/material/IconButton";
@@ -24,6 +25,7 @@ export default storyoptions;
 const Template = (props) => {
   const [watchState, setWatchState] = useState(true);
   const [sampleLayerVisibility, setSampleLayerVisibility] = useState(false);
+  const mapHook = useMap({ mapId: "map_1" });
   const mapState = useMapState({
     mapId: "map_1",
     watch: {
@@ -54,9 +56,19 @@ const Template = (props) => {
                 edge="end"
                 aria-label="toggle visibility"
                 onClick={() => {
-                  console.log(mapState);
-                  console.log(props);
-                  setSampleLayerVisibility(!sampleLayerVisibility);
+                  console.log(
+                    mapHook.map?.getLayer?.("sampleGeoJson")?.getLayoutProperty("visibility")
+                  );
+                  let currentVisibility = mapHook.map
+                    ?.getLayer?.("sampleGeoJson")
+                    ?.getLayoutProperty("visibility");
+                  mapHook.map
+                    ?.getLayer?.("sampleGeoJson")
+                    ?.setLayoutProperty(
+                      "visibility",
+                      currentVisibility === "none" ? "visible" : "none"
+                    );
+                  mapHook.map._render();
                 }}
               >
                 {mapState.layers?.[0]?.visible ? <VisibilityIcon /> : <VisibilityOffIcon />}
@@ -64,12 +76,7 @@ const Template = (props) => {
             }
           >
             <ListItemText primary={"SampleLayer 1"} secondary={""} />
-            <MlGeoJsonLayer
-              layerId={"sampleGeoJson"}
-              type="line"
-              geojson={sample_geojson_1}
-              layout={{ visibility: sampleLayerVisibility ? "visible" : "none" }}
-            />
+            <MlGeoJsonLayer layerId={"sampleGeoJson"} type="line" geojson={sample_geojson_1} />
           </ListItem>
         </List>
       </Sidebar>

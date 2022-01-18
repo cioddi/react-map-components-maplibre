@@ -14,6 +14,9 @@ import sample_geojson_1 from "../MlGeoJsonLayer/assets/sample_1.json";
 import sample_geojson_2 from "../MlGeoJsonLayer/assets/sample_2.json";
 import List from "@mui/material/List";
 import MlGeoJsonLayer from "../MlGeoJsonLayer/MlGeoJsonLayer";
+import Button from "@mui/material/Button";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import LocationOffIcon from "@mui/icons-material/LocationOff";
 
 const storyoptions = {
   title: "MapComponents/MlShareMapState",
@@ -23,10 +26,9 @@ const storyoptions = {
 };
 export default storyoptions;
 
-const Template = (props) => {
+const Template = () => {
   const geoJsonArray = [sample_geojson_1, sample_geojson_2];
   const [watchState, setWatchState] = useState(true);
-  const [sampleLayerVisibility, setSampleLayerVisibility] = useState(false);
   const mapHook = useMap({ mapId: "map_1" });
   const mapState = useMapState({
     mapId: "map_1",
@@ -40,22 +42,21 @@ const Template = (props) => {
     },
   });
 
-  // TODO: sampleLayerVisibility an aktuelle layer visibility abhängig machen
   return (
     <>
-      <button
+      <Button
         style={{ zIndex: "1000", position: "absolute" }}
         onClick={() => setWatchState(!watchState)}
       >
-        watch map state {watchState ? 1 : 0}
-      </button>
+        {watchState ? <LocationOnIcon /> : <LocationOffIcon />}
+      </Button>
       <MlShareMapState active={watchState} />
       {geoJsonArray.map((el, i) => (
         <MlGeoJsonLayer layerId={"GeoJson_" + i} type="line" geojson={el} key={"GeoJson_" + i} />
       ))}
       <Sidebar sx={{ wordBreak: "break-word" }}>
         <List dense key="layers">
-          {mapState.layers?.map((el, i) => (
+          {mapState.layers?.map((el) => (
             <ListItem
               key={el.id}
               secondaryAction={
@@ -63,7 +64,6 @@ const Template = (props) => {
                   edge="end"
                   aria-label="toggle visibility"
                   onClick={() => {
-                    console.log(mapHook.map?.getLayer?.(el.id)?.getLayoutProperty("visibility"));
                     let currentVisibility = mapHook.map
                       ?.getLayer?.(el.id)
                       ?.getLayoutProperty("visibility");

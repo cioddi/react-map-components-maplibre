@@ -11,6 +11,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import ListItemText from "@mui/material/ListItemText";
 import sample_geojson_1 from "../MlGeoJsonLayer/assets/sample_1.json";
+import sample_geojson_2 from "../MlGeoJsonLayer/assets/sample_2.json";
 import List from "@mui/material/List";
 import MlGeoJsonLayer from "../MlGeoJsonLayer/MlGeoJsonLayer";
 
@@ -23,6 +24,7 @@ const storyoptions = {
 export default storyoptions;
 
 const Template = (props) => {
+  const geoJsonArray = [sample_geojson_1, sample_geojson_2];
   const [watchState, setWatchState] = useState(true);
   const [sampleLayerVisibility, setSampleLayerVisibility] = useState(false);
   const mapHook = useMap({ mapId: "map_1" });
@@ -48,36 +50,39 @@ const Template = (props) => {
         watch map state {watchState ? 1 : 0}
       </button>
       <MlShareMapState active={watchState} />
+      {geoJsonArray.map((el, i) => (
+        <MlGeoJsonLayer layerId={"GeoJson_" + i} type="line" geojson={el} key={"GeoJson_" + i} />
+      ))}
       <Sidebar sx={{ wordBreak: "break-word" }}>
         <List dense key="layers">
-          <ListItem
-            secondaryAction={
-              <IconButton
-                edge="end"
-                aria-label="toggle visibility"
-                onClick={() => {
-                  console.log(
-                    mapHook.map?.getLayer?.("sampleGeoJson")?.getLayoutProperty("visibility")
-                  );
-                  let currentVisibility = mapHook.map
-                    ?.getLayer?.("sampleGeoJson")
-                    ?.getLayoutProperty("visibility");
-                  mapHook.map
-                    ?.getLayer?.("sampleGeoJson")
-                    ?.setLayoutProperty(
-                      "visibility",
-                      currentVisibility === "none" ? "visible" : "none"
-                    );
-                  mapHook.map._render();
-                }}
-              >
-                {mapState.layers?.[0]?.visible ? <VisibilityIcon /> : <VisibilityOffIcon />}
-              </IconButton>
-            }
-          >
-            <ListItemText primary={"SampleLayer 1"} secondary={""} />
-            <MlGeoJsonLayer layerId={"sampleGeoJson"} type="line" geojson={sample_geojson_1} />
-          </ListItem>
+          {mapState.layers?.map((el, i) => (
+            <ListItem
+              key={el.id}
+              secondaryAction={
+                <IconButton
+                  edge="end"
+                  aria-label="toggle visibility"
+                  onClick={() => {
+                    console.log(mapHook.map?.getLayer?.(el.id)?.getLayoutProperty("visibility"));
+                    let currentVisibility = mapHook.map
+                      ?.getLayer?.(el.id)
+                      ?.getLayoutProperty("visibility");
+                    mapHook.map
+                      ?.getLayer?.(el.id)
+                      ?.setLayoutProperty(
+                        "visibility",
+                        currentVisibility === "none" ? "visible" : "none"
+                      );
+                    mapHook.map._render();
+                  }}
+                >
+                  {el.visible ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                </IconButton>
+              }
+            >
+              <ListItemText primary={el.id} secondary={""} />
+            </ListItem>
+          ))}
         </List>
       </Sidebar>
     </>

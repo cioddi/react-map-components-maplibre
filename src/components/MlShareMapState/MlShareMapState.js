@@ -111,6 +111,12 @@ const MlShareMapState = (props) => {
   useEffect(() => {
     if (!mapRef.current) return;
 
+    refreshUrlParameters();
+  }, [refreshUrlParameters]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
     let _refreshUrlParameters = refreshUrlParameters;
 
     mapRef.current.on("moveend", _refreshUrlParameters, componentId.current);

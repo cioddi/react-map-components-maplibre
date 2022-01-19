@@ -14,9 +14,9 @@ import sample_geojson_1 from "../MlGeoJsonLayer/assets/sample_1.json";
 import sample_geojson_2 from "../MlGeoJsonLayer/assets/sample_2.json";
 import List from "@mui/material/List";
 import MlGeoJsonLayer from "../MlGeoJsonLayer/MlGeoJsonLayer";
-import Button from "@mui/material/Button";
-import LocationOnIcon from "@mui/icons-material/LocationOn";
-import LocationOffIcon from "@mui/icons-material/LocationOff";
+import { ToggleButton } from "@mui/material";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 
 const storyoptions = {
   title: "MapComponents/MlShareMapState",
@@ -44,17 +44,23 @@ const Template = () => {
 
   return (
     <>
-      <Button
-        style={{ zIndex: "1000", position: "absolute" }}
-        onClick={() => setWatchState(!watchState)}
-      >
-        {watchState ? <LocationOnIcon /> : <LocationOffIcon />}
-      </Button>
       <MlShareMapState active={watchState} />
       {geoJsonArray.map((el, i) => (
         <MlGeoJsonLayer layerId={"GeoJson_" + i} type="line" geojson={el} key={"GeoJson_" + i} />
       ))}
       <Sidebar sx={{ wordBreak: "break-word" }}>
+        <ToggleButton
+          size="small"
+          selected={watchState}
+          value={watchState}
+          onChange={() => {
+            setWatchState(!watchState);
+          }}
+        >
+          {watchState ? <CheckCircleOutlineIcon /> : <ErrorOutlineIcon />}
+
+          {watchState ? "active" : "inactive"}
+        </ToggleButton>
         <List dense key="layers">
           {mapState.layers?.map((el) => (
             <ListItem
@@ -73,7 +79,9 @@ const Template = () => {
                         "visibility",
                         currentVisibility === "none" ? "visible" : "none"
                       );
-                    mapHook.map._render();
+                    setTimeout(() => {
+                      mapHook.map._render();
+                    }, 100);
                   }}
                 >
                   {el.visible ? <VisibilityIcon /> : <VisibilityOffIcon />}

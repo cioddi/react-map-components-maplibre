@@ -1,22 +1,20 @@
-import React, {useContext, useRef, useEffect, useState} from "react";
+import React, { useContext, useRef, useEffect, useState } from "react";
 import PropTypes from "prop-types";
-import {MapContext} from "@mapcomponents/react-core";
-import {bbox} from "@turf/turf";
+import { bbox } from "@turf/turf";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import InfoIcon from "@mui/icons-material/Info";
 import FileCopy from "@mui/icons-material/FileCopy";
-import {Popup} from "maplibre-gl";
+import { Popup } from "maplibre-gl";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import GeoJsonContext from "./util/GeoJsonContext";
 import toGeoJSON from "./gpxConverter";
 import useMediaQuery from "@mui/material/useMediaQuery";
-
-import {v4 as uuidv4} from "uuid";
+import useMap from "../../hooks/useMap";
 
 /**
  * MlGPXViewer returns a dropzone and a button to load a GPX Track into the map.
@@ -25,11 +23,8 @@ import {v4 as uuidv4} from "uuid";
  */
 const MlGPXViewer = (props) => {
   const dataSource = useContext(GeoJsonContext);
-  const componentId = useRef((props.idPrefix ? props.idPrefix : "MlGpxViewer-") + uuidv4());
-  const mapContext = useContext(MapContext);
-  const mapId = props.mapId;
   const initializedRef = useRef(false);
-  const mapRef = useRef(null);
+  const mapHook = useMap({ mapId: props.mapId, waitForLayer: props.insertBeforeLayer });
   const sourceName = "import-source";
   const layerNameLines = "importer-layer-lines";
   const layerNamePoints = "importer-layer-points";
@@ -49,36 +44,19 @@ const MlGPXViewer = (props) => {
   );
 
   useEffect(() => {
-    let _componentId = componentId.current;
-    let _popup = popup.current;
-    return () => {
-      // This is the cleanup function, it is called when this react component is removed from react-dom
-      if (mapRef.current) {
-        mapRef.current.cleanup(_componentId);
-
-        mapRef.current.getCanvas().style.cursor = "";
-
-        mapRef.current = null;
-      }
-      _popup.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mapContext.mapExists(mapId) || initializedRef.current) return;
+    if (!mapHook.map || initializedRef.current) return;
 
     initializedRef.current = true;
-    mapRef.current = mapContext.getMap(mapId);
 
-    mapRef.current.addSource(
+    mapHook.map.addSource(
       sourceName,
       {
         type: "geojson",
         data: dataSource.data,
       },
-      componentId.current
+      mapHook.componentId
     );
-    mapRef.current.addLayer(
+    mapHook.map.addLayer(
       {
         id: layerNameLines,
         source: sourceName,
@@ -89,9 +67,9 @@ const MlGPXViewer = (props) => {
         },
       },
       props.insertBeforeLayer,
-      componentId.current
+      mapHook.componentId
     );
-    mapRef.current.addLayer(
+    mapHook.map.addLayer(
       {
         id: layerNamePoints,
         source: sourceName,
@@ -103,15 +81,14 @@ const MlGPXViewer = (props) => {
         filter: ["==", "$type", "Point"],
       },
       props.insertBeforeLayer,
-      componentId.current
+      mapHook.componentId
     );
 
     [layerNameLines, layerNamePoints].forEach((layerName) => {
-      mapRef.current.setLayoutProperty(layerName, "visibility", "visible");
+      mapHook.map.setLayoutProperty(layerName, "visibility", "visible");
     });
-    mapRef.current.on("mouseenter", layerNamePoints, (e) => {
+    mapHook.map.on("mouseenter", layerNamePoints, (e) => {
       // Change the cursor style as a UI indicator.
-      mapContext.getMap(props.mapId).getCanvas().style.cursor = "pointer";
 
       const coordinates = e.features[0].geometry.coordinates.slice();
       //const description = e.features[0].properties.desc;
@@ -127,16 +104,16 @@ const MlGPXViewer = (props) => {
       // Populate the popup and set its coordinates
 
       // based on the feature found.
-      popup.current.setLngLat(coordinates).setHTML(name).addTo(mapRef.current);
+      popup.current.setLngLat(coordinates).setHTML(name).addTo(mapHook.map);
     });
 
-    mapRef.current.on("mouseleave", "places", function () {
-      mapRef.current.getCanvas().style.cursor = "";
+    mapHook.map.on("mouseleave", "places", function () {
+      mapHook.map.getCanvas().style.cursor = "";
       popup.current.remove();
     });
 
-    mapRef.current.setZoom(10);
-  }, [mapContext.mapIds, mapContext, dataSource.data, mapId, props]);
+    mapHook.map.setZoom(10);
+  }, [mapHook.map]);
 
   useEffect(() => {
     const dropZoneCurrent = dropZone.current;
@@ -174,12 +151,12 @@ const MlGPXViewer = (props) => {
   };
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapHook.map) return;
 
     const visibility = props.visible ? "visible" : "none";
 
     [layerNameLines, layerNamePoints].forEach((layerName) => {
-      mapRef.current.setLayoutProperty(layerName, "visibility", visibility);
+      mapHook.map.setLayoutProperty(layerName, "visibility", visibility);
     });
   }, [props.visible]);
 
@@ -205,7 +182,7 @@ const MlGPXViewer = (props) => {
   };
 
   const addGPXToMap = (gpxAsString) => {
-    if (!mapRef.current) return;
+    if (!mapHook.map) return;
     try {
       setMetaData([]);
       const domParser = new DOMParser();
@@ -229,9 +206,9 @@ const MlGPXViewer = (props) => {
       });
       const data = toGeoJSON.gpx(gpxDoc);
       dataSource.setData(data);
-      mapRef.current.getSource(sourceName).setData(data);
+      mapHook.map.getSource(sourceName).setData(data);
       const bounds = bbox(data);
-      mapRef.current.fitBounds(bounds);
+      mapHook.map.fitBounds(bounds);
     } catch (e) {
       console.log(e);
     }
@@ -257,15 +234,17 @@ const MlGPXViewer = (props) => {
   };
   return (
     <>
-      <div style={{
-        position: "fixed",
-        right: "5px",
-        bottom: mediaIsMobile ? "40px" : "25px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "5px",
-        zIndex: 1000,
-      }}>
+      <div
+        style={{
+          position: "fixed",
+          right: "5px",
+          bottom: mediaIsMobile ? "40px" : "25px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "5px",
+          zIndex: 1000,
+        }}
+      >
         <IconButton
           onClick={manualUpload}
           style={{
@@ -279,9 +258,9 @@ const MlGPXViewer = (props) => {
             type="file"
             id="input"
             multiple
-            style={{display: "none"}}
+            style={{ display: "none" }}
           ></input>
-          <FileCopy/>
+          <FileCopy />
         </IconButton>
         <IconButton
           onClick={toogleDrawer}
@@ -290,7 +269,7 @@ const MlGPXViewer = (props) => {
           }}
           size="large"
         >
-          <InfoIcon/>
+          <InfoIcon />
         </IconButton>
       </div>
       <Drawer variant="persistent" anchor="left" open={open}>
@@ -304,11 +283,11 @@ const MlGPXViewer = (props) => {
         >
           Informationen zur Route
         </Typography>
-        <Divider/>
+        <Divider />
         <List>
           {metaData.map((item) => (
             <ListItem key={`item--${item.id}`}>
-              <ListItemText primary={item.value}/>
+              <ListItemText primary={item.value} />
             </ListItem>
           ))}
         </List>
@@ -350,7 +329,7 @@ MlGPXViewer.defaultProps = {
 
 MlGPXViewer.propTypes = {
   /**
-   * Id of the target MapLibre instance in mapContext
+   * Id of the target MapLibre instance in mapHook
    */
   mapId: PropTypes.string,
   /**

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import useMap from "../../hooks/useMap";
 
@@ -22,8 +22,8 @@ const MlFollowGps = (props) => {
   const [isFollowed, setIsFollowed] = useState(false);
   const [geoJson, setGeoJson] = useState(undefined);
   const [locationAccessDenied, setLocationAccessDenied] = useState(false);
-
   const [accuracyGeoJson, setAccuracyGeoJson] = useState();
+  const [deviceOrientation, setDeviceOrientation] = useState(0);
 
   const getLocationSuccess = useCallback(
     (pos) => {
@@ -46,6 +46,37 @@ const MlFollowGps = (props) => {
     console.log("Access of user location denied");
     setLocationAccessDenied(true);
   };
+
+  const orientationCone = useMemo(
+    () => {
+      if (!userLocationGeoJson) {
+        return undefined;
+      }
+      let radius = 0.02;
+      let bearing1 = deviceOrientation - 15;
+      let bearing2 = deviceOrientation + 15;
+      const options = {steps: 65};
+      let arc = lineArc(userLocationGeoJson, radius, bearing1, bearing2, options);
+      let copy = arc;
+      copy.geometry.coordinates.push(userLocationGeoJson.geometry.coordinates);
+      copy.geometry.coordinates.slice(0, 0, userLocationGeoJson.geometry.coordinates);
+      return copy;
+    }, [deviceOrientation, userLocationGeoJson]
+  )
+
+  const handleOrientation = (event) => {
+    setDeviceOrientation(-event.alpha)
+  } 
+
+  useEffect(() => {
+    if (isFollowed) {
+      let _handleOrientation = handleOrientation;
+      window.addEventListener('deviceorientation', _handleOrientation)
+      return () => {
+        window.removeEventListener('deviceorientation', _handleOrientation)
+      }
+    }
+  }, [isFollowed]);
 
   useEffect(() => {
     if (!mapHook.map) return;
@@ -74,9 +105,22 @@ const MlFollowGps = (props) => {
         />
       )}
 
-      {isFollowed && geoJson && (
+      {isFollowed && orientationCone && (
         <MlGeoJsonLayer
-          geojson={geoJson}
+          geojson={orientationCone}
+          type={"fill"}
+          paint={{
+            "fill-color": "#0000ff",
+            "fill-antialias": false,
+            "fill-opacity": 0.3,
+          }}
+          insertBeforeLayer={props.insertBeforeLayer}
+        />
+      )}
+
+      {isFollowed && userLocationGeoJson && (
+        <MlGeoJsonLayer
+          geojson={userLocationGeoJson}
           type={"circle"}
           paint={{
             "circle-color": "#009ee0",

@@ -20,7 +20,7 @@ const MlFollowGps = (props) => {
   const mapHook = useMap({ mapId: props.mapId, waitForLayer: props.insertBeforeLayer });
 
   const [isFollowed, setIsFollowed] = useState(false);
-  const [geoJson, setGeoJson] = useState(undefined);
+  const [userLocationGeoJson, setuserLocationGeoJson] = useState(undefined);
   const [locationAccessDenied, setLocationAccessDenied] = useState(false);
   const [accuracyGeoJson, setAccuracyGeoJson] = useState();
   const [deviceOrientation, setDeviceOrientation] = useState(0);
@@ -35,11 +35,12 @@ const MlFollowGps = (props) => {
         speed: 1,
         curve: 1,
       });
+      if (!props.showUserLocation) return;
       const geoJsonPoint = point([pos.coords.longitude, pos.coords.latitude]);
-      setGeoJson(geoJsonPoint);
+      setuserLocationGeoJson(geoJsonPoint);
       setAccuracyGeoJson(circle(geoJsonPoint, pos.coords.accuracy / 1000));
     },
-    [mapHook.map]
+    [mapHook.map, props]
   );
 
   const getLocationError = (err) => {
@@ -92,7 +93,7 @@ const MlFollowGps = (props) => {
 
   return (
     <>
-      {isFollowed && geoJson && (
+      {isFollowed && userLocationGeoJson && (
         <MlGeoJsonLayer
           geojson={accuracyGeoJson}
           type={"fill"}

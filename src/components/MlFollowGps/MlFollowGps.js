@@ -3,8 +3,8 @@ import PropTypes from "prop-types";
 import useMap from "../../hooks/useMap";
 
 import Button from "@mui/material/Button";
-import RoomIcon from "@mui/icons-material/Room";
-import { point, circle } from "@turf/turf";
+import GpsFixedIcon from "@mui/icons-material/GpsFixed";
+import { point, circle, lineArc } from "@turf/turf";
 import MlGeoJsonLayer from "../MlGeoJsonLayer/MlGeoJsonLayer";
 
 /**
@@ -141,7 +141,7 @@ const MlFollowGps = (props) => {
         }}
       >
         {" "}
-        <RoomIcon sx={{ fontSize: props.style.fontSize }} />{" "}
+        <GpsFixedIcon sx={{ fontSize: props.style.fontSize }} />{" "}
       </Button>
     </>
   );

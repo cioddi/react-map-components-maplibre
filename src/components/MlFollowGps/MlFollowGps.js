@@ -166,6 +166,9 @@ MlFollowGps.defaultProps = {
   },
   onColor: "#ececec",
   offColor: "#666",
+  showAccuracyCircle: true,
+  showUserLocation: true,
+  showOrientation: true
 };
 
 MlFollowGps.propTypes = {
@@ -197,5 +200,19 @@ MlFollowGps.propTypes = {
    * https://maplibre.org/maplibre-gl-js-docs/style-spec/layers/#fill
    */
   circlePaint: PropTypes.object,
+  /**
+   * By default, if showUserLocation is true, a transparent circle will be drawn around the user location 
+   * indicating the accuracy (95% confidence level) of the user's location. Set to false to disable. 
+   */
+  showAccuracyCircle: PropTypes.bool,
+  /**
+   * By default a dot will be shown on the map at the user's location. Set to false to disable.
+   */
+  showUserLocation: PropTypes.bool,
+  /**
+   * By default a cone will be shown on the map at the user's location to indicate the device's orientation.
+   * Set to false to disable.
+   */
+  showOrientation: PropTypes.bool,
 };
 export default MlFollowGps;

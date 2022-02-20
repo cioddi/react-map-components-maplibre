@@ -87,30 +87,40 @@ const MlGPXViewer = (props) => {
     [layerNameLines, layerNamePoints].forEach((layerName) => {
       mapHook.map.setLayoutProperty(layerName, "visibility", "visible");
     });
-    mapHook.map.on("mouseenter", layerNamePoints, (e) => {
-      // Change the cursor style as a UI indicator.
+    mapHook.map.on(
+      "mouseenter",
+      layerNamePoints,
+      (e) => {
+        // Change the cursor style as a UI indicator.
 
-      const coordinates = e.features[0].geometry.coordinates.slice();
-      //const description = e.features[0].properties.desc;
-      const name = e.features[0].properties.name;
+        const coordinates = e.features[0].geometry.coordinates.slice();
+        //const description = e.features[0].properties.desc;
+        const name = e.features[0].properties.name;
 
-      // Ensure that if the map is zoomed out such that multiple
-      // copies of the feature are visible, the popup appears
-      // over the copy being pointed to.
-      while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-        coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
-      }
+        // Ensure that if the map is zoomed out such that multiple
+        // copies of the feature are visible, the popup appears
+        // over the copy being pointed to.
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+          coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+        }
 
-      // Populate the popup and set its coordinates
+        // Populate the popup and set its coordinates
 
-      // based on the feature found.
-      popup.current.setLngLat(coordinates).setHTML(name).addTo(mapHook.map);
-    });
+        // based on the feature found.
+        popup.current.setLngLat(coordinates).setHTML(name).addTo(mapHook.map);
+      },
+      mapHook.componentId
+    );
 
-    mapHook.map.on("mouseleave", "places", function () {
-      mapHook.map.getCanvas().style.cursor = "";
-      popup.current.remove();
-    });
+    mapHook.map.on(
+      "mouseleave",
+      "places",
+      function () {
+        mapHook.map.getCanvas().style.cursor = "";
+        popup.current.remove();
+      },
+      mapHook.componentId
+    );
 
     mapHook.map.setZoom(10);
   }, [mapHook.map]);
@@ -139,9 +149,8 @@ const MlGPXViewer = (props) => {
     return () => {
       window.removeEventListener("dragenter", raiseDropZoneAndStopDefault);
       window.removeEventListener("dragover", stopDefault);
-      window.removeEventListener("drop", stopDefault);
       dropZoneCurrent.removeEventListener("dragleave", lowerDropZone);
-      window.removeEventListener("drop", (event) => lowerDropZoneAndStopDefault);
+      window.removeEventListener("drop", lowerDropZoneAndStopDefault);
     };
   });
 

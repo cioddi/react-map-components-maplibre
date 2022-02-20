@@ -1,13 +1,8 @@
-import { useContext, useState, useEffect, useRef } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useState, useEffect } from "react";
 import WMSCapabilities from "wms-capabilities";
-import { MapContext } from "@mapcomponents/react-core";
 
 function useWms(props) {
   // Use a useRef hook to reference the layer object to be able to access it later inside useEffect hooks
-  const mapContext = useContext(MapContext);
-  const initializedRef = useRef(false);
-
   const [getFeatureInfoUrl, setGetFeatureInfoUrl] = useState(undefined);
   const [url, setUrl] = useState(props.url);
   const [wmsUrl, setWmsUrl] = useState("");
@@ -68,7 +63,7 @@ function useWms(props) {
   useEffect(() => {
     if (!capabilities?.Service) return;
 
-    setWmsUrl(capabilities.Service.OnlineResource);
+    setWmsUrl(capabilities.Capability?.Request?.GetMap?.DCPType?.[0]?.HTTP?.Get?.OnlineResource);
     // set getFeatureInfo url
     setGetFeatureInfoUrl(
       capabilities.Capability?.Request?.GetFeatureInfo?.DCPType?.[0]?.HTTP?.Get?.OnlineResource

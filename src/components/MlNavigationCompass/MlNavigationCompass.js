@@ -96,7 +96,7 @@ const MlNavigationCompass = (props) => {
       setBearing(Math.round(mapHook.map.getBearing()));
     });
     setBearing(Math.round(mapHook.map.getBearing()));
-  }, [mapHook.mapIds, mapHook, props.mapId]);
+  }, [mapHook.map, props.mapId]);
 
   return (
     <>

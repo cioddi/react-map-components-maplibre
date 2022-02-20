@@ -20,7 +20,7 @@ const MlFollowGps = (props) => {
   const mapHook = useMap({ mapId: props.mapId, waitForLayer: props.insertBeforeLayer });
 
   const [isFollowed, setIsFollowed] = useState(false);
-  const [userLocationGeoJson, setuserLocationGeoJson] = useState(undefined);
+  const [userLocationGeoJson, setUserLocationGeoJson] = useState(undefined);
   const [locationAccessDenied, setLocationAccessDenied] = useState(false);
   const [accuracyGeoJson, setAccuracyGeoJson] = useState();
   const [deviceOrientation, setDeviceOrientation] = useState(0);
@@ -37,7 +37,7 @@ const MlFollowGps = (props) => {
       });
       if (!props.showUserLocation) return;
       const geoJsonPoint = point([pos.coords.longitude, pos.coords.latitude]);
-      setuserLocationGeoJson(geoJsonPoint);
+      setUserLocationGeoJson(geoJsonPoint);
       setAccuracyGeoJson(circle(geoJsonPoint, pos.coords.accuracy / 1000));
     },
     [mapHook.map, props]

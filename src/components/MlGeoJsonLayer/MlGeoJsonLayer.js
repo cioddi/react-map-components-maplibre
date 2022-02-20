@@ -1,14 +1,12 @@
-import React, { useRef, useEffect, useContext, useCallback } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 
-import { v4 as uuidv4 } from "uuid";
-import * as turf from "@turf/turf";
-import { MapContext } from "@mapcomponents/react-core";
-import useMapState from "../../hooks/useMapState";
+import useMap from "../../hooks/useMap";
 
-import { _transitionToGeojson } from "./util/transitionFunctions";
+import getDefaultPaintPropsByType from "./util/getDefaultPaintPropsByType";
+import getDefaulLayerTypeByGeometry from "./util/getDefaultLayerTypeByGeometry";
 
-const msPerStep = 50;
+const legalLayerTypes = ["circle", "fill", "line"];
 
 /**
  * Adds source and layer of types "line", "fill" or "circle" to display GeoJSON data on the map.
@@ -17,180 +15,95 @@ const msPerStep = 50;
  */
 const MlGeoJsonLayer = (props) => {
   // Use a useRef hook to reference the layer object to be able to access it later inside useEffect hooks
-  const mapContext = useContext(MapContext);
-  const mapState = useMapState({
-    mapId: props.mapId,
-    watch: {
-      viewport: false,
-      layers: true,
-      sources: false,
-    },
-  });
-  const oldGeojsonRef = useRef(null);
-  const mapRef = useRef(null);
+  const mapHook = useMap({ mapId: props.mapId, waitForLayer: props.insertBeforeLayer });
   const initializedRef = useRef(false);
-  const transitionInProgressRef = useRef(false);
-  const transitionTimeoutRef = useRef(undefined);
-  const currentTransitionStepRef = useRef(false);
-  const transitionGeojsonDataRef = useRef([]);
-  const transitionGeojsonCommonDataRef = useRef([]);
-  const componentId = useRef(
-    (props.layerId ? props.layerId : "MlGeoJsonLayer-") + (props.idSuffix || uuidv4())
-  );
-  const layerId = useRef(props.layerId || componentId.current);
+  const layerId = useRef(props.layerId || "MlGeoJsonLayer-" + mapHook.componentId);
+  const layerTypeRef = useRef(undefined);
 
   useEffect(() => {
-    let _componentId = componentId.current;
-    return () => {
-      // This is the cleanup function, it is called when this react component is removed from react-dom
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-      if (mapRef.current) {
-        mapRef.current.cleanup(_componentId);
-
-        mapRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mapRef.current || !initializedRef.current) return;
+    if (!mapHook.map || !initializedRef.current) return;
 
     for (var key in props.layout) {
-      mapContext.getMap(props.mapId).setLayoutProperty(layerId.current, key, props.layout[key]);
+      mapHook.map.setLayoutProperty(layerId.current, key, props.layout[key]);
     }
-  }, [props.layout, mapContext, props.mapId]);
+  }, [props.layout, mapHook.map, props.mapId]);
 
   useEffect(() => {
-    if (!mapRef.current || !initializedRef.current) return;
+    if (!mapHook.map || !initializedRef.current) return;
 
-    for (var key in props.paint) {
-      mapContext.getMap(props.mapId).setPaintProperty(layerId.current, key, props.paint[key]);
+    let _paint =
+      props.paint || getDefaultPaintPropsByType(layerTypeRef.current, props.defaultPaintOverrides);
+
+    for (var key in _paint) {
+      mapHook.map.setPaintProperty(layerId.current, key, _paint[key]);
     }
-  }, [props.paint, mapContext, props.mapId]);
-
-  const transitionToGeojson = useCallback(
-    (newGeojson) => {
-      _transitionToGeojson(
-        newGeojson,
-        props,
-        transitionGeojsonCommonDataRef,
-        transitionGeojsonDataRef,
-        transitionInProgressRef,
-        oldGeojsonRef,
-        msPerStep,
-        currentTransitionStepRef,
-        mapRef.current,
-        componentId.current,
-        transitionTimeoutRef
-      );
-    },
-    [props]
-  );
+  }, [props.paint, mapHook.map, props.mapId, props.defaultPaintOverrides]);
 
   useEffect(() => {
-    if (!mapRef.current?.getSource?.(componentId.current) || !initializedRef.current) return;
-    // the MapLibre-gl instance (mapContext.map) is accessible here
-    // initialize the layer and add it to the MapLibre-gl instance or do something else with it
+    if (!mapHook?.map?.getSource(layerId.current) || !initializedRef.current) return;
+
+    mapHook.map.getSource(layerId.current).setData(props.geojson);
+  }, [props.geojson, mapHook.map, props.type]);
+
+  const createLayer = useCallback(() => {
+    let geojson = props.geojson;
+
+    layerTypeRef.current = props.type || getDefaulLayerTypeByGeometry(props.geojson);
+
+    mapHook.map.addLayer(
+      {
+        id: layerId.current,
+        source: {
+          type: "geojson",
+          data: geojson,
+        },
+        type: layerTypeRef.current,
+        paint:
+          props.paint ||
+          getDefaultPaintPropsByType(layerTypeRef.current, props.defaultPaintOverrides),
+        layout: props.layout || {},
+        ...props.options,
+      },
+      props.insertBeforeLayer,
+      mapHook.componentId
+    );
+
+    if (typeof props.onHover !== "undefined") {
+      mapHook.map.on("mousemove", layerId.current, props.onHover, mapHook.componentId);
+    }
+
+    if (typeof props.onClick !== "undefined") {
+      mapHook.map.on("click", layerId.current, props.onClick, mapHook.componentId);
+    }
+
+    if (typeof props.onLeave !== "undefined") {
+      mapHook.map.on("mouseleave", layerId.current, props.onLeave, mapHook.componentId);
+    }
+  }, [mapHook, props]);
+
+  useEffect(() => {
+    if (!mapHook.map || !props.geojson) return;
 
     if (
-      typeof props.transitionTime !== "undefined" &&
-      props.type === "line" &&
-      oldGeojsonRef.current
+      initializedRef.current &&
+      legalLayerTypes.indexOf(props.type) !== -1 &&
+      layerTypeRef.current &&
+      props.type !== layerTypeRef.current
     ) {
-      transitionInProgressRef.current = false;
-      currentTransitionStepRef.current = false;
-      transitionGeojsonDataRef.current = [];
-      transitionGeojsonCommonDataRef.current = [];
-      transitionToGeojson(props.geojson);
-    } else {
-      mapRef.current.getSource(componentId.current).setData(props.geojson);
+      // remove (cleanup) & reinitialize the layer if type has changed
+      mapHook.map.cleanup(mapHook.componentId);
+    } else if (
+      initializedRef.current &&
+      (legalLayerTypes.indexOf(props.type) === -1 ||
+        (legalLayerTypes.indexOf(props.type) !== -1 && props.type === layerTypeRef.current))
+    ) {
+      return;
     }
-    oldGeojsonRef.current = props.geojson;
-  }, [
-    props.geojson,
-    props.mapId,
-    mapContext,
-    props.type,
-    transitionToGeojson,
-    props.transitionTime,
-  ]);
 
-  useEffect(() => {
-    if (!mapContext.mapExists(props.mapId) || initializedRef.current) return;
-    // the MapLibre-gl instance (mapContext.map) is accessible here
-    // initialize the layer and add it to the MapLibre-gl instance or do something else with it
+    initializedRef.current = true;
 
-    if (props.geojson) {
-      //check if insertBeforeLayer exists
-      if (props.insertBeforeLayer) {
-        let layerFound = false;
-
-        mapState?.layers?.forEach((layer) => {
-          if (layer.id === props.insertBeforeLayer) {
-            layerFound = true;
-          }
-        });
-        if (!layerFound) {
-          return;
-        }
-      }
-      initializedRef.current = true;
-      let geojson = props.geojson;
-
-      if (
-        props.type === "line" &&
-        typeof props.transitionTime !== "undefined" &&
-        props.transitionTime &&
-        typeof props.geojson.geometry !== "undefined"
-      ) {
-        var tmpChunks = turf.lineChunk(props.geojson, 0.01);
-        geojson = tmpChunks.features[0];
-      }
-
-      mapRef.current = mapContext.getMap(props.mapId);
-
-      mapRef.current.addLayer(
-        {
-          id: layerId.current,
-          source: {
-            type: "geojson",
-            data: geojson,
-          },
-          type: props.type || "line",
-          paint: props.paint || {
-            "line-color": "rgb(100,200,100)",
-            "line-width": 10,
-          },
-          layout: props.layout || {},
-        },
-        props.insertBeforeLayer,
-        componentId.current
-      );
-
-      if (typeof props.onHover !== "undefined") {
-        mapRef.current.on("mousemove", componentId.current, props.onHover, componentId.current);
-      }
-
-      if (typeof props.onClick !== "undefined") {
-        mapRef.current.on("click", componentId.current, props.onClick, componentId.current);
-      }
-
-      if (typeof props.onLeave !== "undefined") {
-        mapRef.current.on("mouseleave", componentId.current, props.onLeave, componentId.current);
-      }
-
-      if (
-        props.type === "line" &&
-        typeof props.transitionTime !== "undefined" &&
-        typeof props.geojson.geometry !== "undefined"
-      ) {
-        transitionToGeojson(props.geojson);
-        oldGeojsonRef.current = props.geojson;
-      }
-    }
-  }, [mapContext.mapIds, mapContext, props, transitionToGeojson, mapState.layers]);
+    createLayer();
+  }, [mapHook, createLayer, props]);
 
   return <></>;
 };
@@ -222,6 +135,14 @@ MlGeoJsonLayer.propTypes = {
    */
   paint: PropTypes.object,
   /**
+   * Javascript object with optional properties "fill", "line", "circle" to override implicit layer type default paint properties.
+   */
+  defaultPaintOverrides: PropTypes.object,
+  /**
+   * Javascript object that is spread into the addLayer commands first parameter.
+   */
+  options: PropTypes.object,
+  /**
    * GeoJSON data that is supposed to be rendered by this component.
    */
   geojson: PropTypes.object,
@@ -247,16 +168,6 @@ MlGeoJsonLayer.propTypes = {
    * left/unhovered.
    */
   onLeave: PropTypes.func,
-  /**
-   * Creates transition animation whenever the geojson prop changes.
-   * Only works with layer type "line" and LineString GeoJSON data.
-   */
-  transitionTime: PropTypes.number,
-  /**
-   * Id suffix string that is appended to the componentId.
-   * Probably removed soon.
-   */
-  idSuffix: PropTypes.string,
 };
 
 export default MlGeoJsonLayer;

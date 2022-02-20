@@ -1,8 +1,7 @@
-import React, { useContext, useRef, useEffect } from "react";
-import { MapContext } from "@mapcomponents/react-core";
+import React, { useRef, useEffect } from "react";
+import useMap from "../../hooks/useMap";
 
 import PropTypes from "prop-types";
-import { v4 as uuidv4 } from "uuid";
 
 const defaultProps = {
   visible: true,
@@ -45,31 +44,13 @@ const defaultProps = {
  * @component
  */
 const MlWmsLayer = (props) => {
-  const mapContext = useContext(MapContext);
+  const mapHook = useMap({ mapId: props.mapId, waitForLayer: props.insertBeforeLayer });
 
-  const componentId = useRef(props.layerId || ("MlWmsLayer-" + uuidv4()));
-  const mapRef = useRef(null);
   const initializedRef = useRef(false);
-  const layerId = useRef(props.layerId || componentId.current);
+  const layerId = useRef(props.layerId || "MlWmsLayer-" + mapHook.componentId);
 
   useEffect(() => {
-    let _componentId = componentId.current;
-    return () => {
-      // This is the cleanup function, it is called when this react component is removed from react-dom
-      if (mapRef.current) {
-        mapRef.current.cleanup(_componentId);
-
-        mapRef.current = null;
-      }
-      initializedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mapContext.mapExists(props.mapId) || initializedRef.current) return;
-
-    mapRef.current = mapContext.getMap(props.mapId);
-    if (!mapRef.current) return;
+    if (!mapHook.map || initializedRef.current) return;
 
     initializedRef.current = true;
 
@@ -90,7 +71,7 @@ const MlWmsLayer = (props) => {
     let urlParamsStr =
       decodeURIComponent(urlParams.toString()) + "".replace(/%2F/g, "/").replace(/%3A/g, ":");
 
-    mapRef.current.addSource(
+    mapHook.map.addSource(
       layerId.current,
       {
         type: "raster",
@@ -99,35 +80,35 @@ const MlWmsLayer = (props) => {
         attribution: props.attribution,
         ...props.sourceOptions,
       },
-      componentId.current
+      mapHook.componentId
     );
 
-    mapRef.current.addLayer(
+    mapHook.map.addLayer(
       {
         id: layerId.current,
         type: "raster",
-        source: componentId.current,
+        source: layerId.current,
         ...props.layerOptions,
       },
       props.insertBeforeLayer,
-      componentId.current
+      mapHook.componentId
     );
 
     if (!props.visible) {
-      mapRef.current.setLayoutProperty(componentId.current, "visibility", "none");
+      mapHook.map.setLayoutProperty(layerId.current, "visibility", "none");
     }
-  }, [mapContext.mapIds, mapContext, props]);
+  }, [mapHook, props]);
 
   useEffect(() => {
-    if (!mapRef.current || !initializedRef.current) return;
+    if (!mapHook.map || !initializedRef.current) return;
 
     // toggle layer visibility by changing the layout object's visibility property
     if (props.visible) {
-      mapRef.current.setLayoutProperty(componentId.current, "visibility", "visible");
+      mapHook.map.setLayoutProperty(layerId.current, "visibility", "visible");
     } else {
-      mapRef.current.setLayoutProperty(componentId.current, "visibility", "none");
+      mapHook.map.setLayoutProperty(layerId.current, "visibility", "none");
     }
-  }, [props.visible]);
+  }, [props.visible, mapHook.map]);
 
   return <></>;
 };

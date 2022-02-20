@@ -1,7 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 
-import Button from "@mui/material/Button";
 import PropTypes from "prop-types";
 import useMap from "../../hooks/useMap";
 
@@ -14,54 +12,35 @@ import useMap from "../../hooks/useMap";
 const MlOsmLayer = (props) => {
   const mapHook = useMap({ mapId: props.mapId, waitForLayer: props.insertBeforeLayer });
 
-  const [showLayer, setShowLayer] = useState(true);
-  const sourceIdRef = useRef((props.idPrefix ? props.idPrefix : "MlOsmLayer-source-") + uuidv4());
-  const layerIdRef = useRef((props.idPrefix ? props.idPrefix : "MlOsmLayer-layer-") + uuidv4());
+  const layerId = useRef(props.layerId || "MlOsmLayer-" + mapHook.componentId);
 
   useEffect(() => {
     if (!mapHook.map) return;
 
     mapHook.map.addSource(
-      sourceIdRef.current,
+      layerId.current,
       {
         type: "raster",
         tileSize: 256,
         ...props.sourceOptions,
       },
+      mapHook.componentId
     );
     mapHook.map.addLayer(
       {
-        id: layerIdRef.current,
+        id: layerId.current,
         type: "raster",
-        source: sourceIdRef.current,
+        source: layerId.current,
         minzoom: 0,
         maxzoom: 22,
         ...props.layerOptions,
       },
       props.insertBeforeLayer,
+      mapHook.componentId
     );
-  }, [mapHook.mapIds, props, mapHook.map]);
+  }, [props, mapHook.map]);
 
-  useEffect(() => {
-    if (!mapHook.map) return;
-    
-    // toggle layer visibility by changing the layout object's visibility property
-    if (showLayer) {
-      mapHook.map.setLayoutProperty(layerIdRef.current, "visibility", "visible");
-    } else {
-      mapHook.map.setLayoutProperty(layerIdRef.current, "visibility", "none");
-    }
-  }, [showLayer]);
-
-  return (
-    <Button
-      color="primary"
-      variant={showLayer ? "contained" : "outlined"}
-      onClick={() => setShowLayer(!showLayer)}
-    >
-      OSM
-    </Button>
-  );
+  return <></>;
 };
 
 MlOsmLayer.propTypes = {

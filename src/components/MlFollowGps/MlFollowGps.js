@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import useMap from "../../hooks/useMap";
 
@@ -6,9 +6,6 @@ import Button from "@mui/material/Button";
 import RoomIcon from "@mui/icons-material/Room";
 import { point, circle } from "@turf/turf";
 import MlGeoJsonLayer from "../MlGeoJsonLayer/MlGeoJsonLayer";
-import MlImageMarkerLayer from "../MlImageMarkerLayer/MlImageMarkerLayer";
-
-import marker from "./assets/marker.png";
 
 /**
  * Adds a button that makes the map follow the users GPS position using
@@ -24,25 +21,20 @@ const MlFollowGps = (props) => {
 
   const [isFollowed, setIsFollowed] = useState(false);
   const [geoJson, setGeoJson] = useState(undefined);
-  const watchIdRef = useRef(undefined);
   const [locationAccessDenied, setLocationAccessDenied] = useState(false);
 
   const [accuracyGeoJson, setAccuracyGeoJson] = useState();
-
-  useEffect(() => {
-    return () => {
-      if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = undefined;
-      }
-    };
-  }, []);
 
   const getLocationSuccess = useCallback(
     (pos) => {
       if (!mapHook.map) return;
 
-      mapHook.map.setCenter([pos.coords.longitude, pos.coords.latitude]);
+      mapHook.map.flyTo({
+        center: [pos.coords.longitude, pos.coords.latitude],
+        zoom: 18,
+        speed: 1,
+        curve: 1,
+      });
       const geoJsonPoint = point([pos.coords.longitude, pos.coords.latitude]);
       setGeoJson(geoJsonPoint);
       setAccuracyGeoJson(circle(geoJsonPoint, pos.coords.accuracy / 1000));
@@ -59,14 +51,13 @@ const MlFollowGps = (props) => {
     if (!mapHook.map) return;
 
     if (isFollowed) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        getLocationSuccess,
-        getLocationError
-      );
-    } else {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+      let _watchId = navigator.geolocation.watchPosition(getLocationSuccess, getLocationError);
+
+      return () => {
+        navigator.geolocation.clearWatch(_watchId);
+      };
     }
-  }, [isFollowed, getLocationSuccess]);
+  }, [mapHook.map, isFollowed, getLocationSuccess]);
 
   return (
     <>
@@ -75,30 +66,26 @@ const MlFollowGps = (props) => {
           geojson={accuracyGeoJson}
           type={"fill"}
           paint={{
-            "fill-color": "#ee7700",
-            "fill-opacity": 0.5,
+            "fill-color": "#cbd300",
+            "fill-opacity": 0.3,
             ...props.accuracyPaint,
           }}
-          insertBeforeLayer={"MlFollowGpsMarker"}
+          insertBeforeLayer={props.insertBeforeLayer}
         />
       )}
 
       {isFollowed && geoJson && (
-        <MlImageMarkerLayer
-          layerId={"MlFollowGpsMarker"}
-          options={{
-            type: "symbol",
-            source: {
-              type: "geojson",
-              data: geoJson,
-            },
-            layout: {
-              "icon-size": 0.1,
-              "icon-offset": [0, -340],
-              ...props.markerLayout,
-            },
+        <MlGeoJsonLayer
+          geojson={geoJson}
+          type={"circle"}
+          paint={{
+            "circle-color": "#009ee0",
+            "circle-radius": 5,
+            "circle-stroke-color": "#fafaff",
+            "circle-stroke-width": 1,
+            ...props.circlePaint,
           }}
-          imgSrc={props.markerImage || marker}
+          insertBeforeLayer={props.insertBeforeLayer}
         />
       )}
 
@@ -160,14 +147,10 @@ MlFollowGps.propTypes = {
    */
   accuracyPaint: PropTypes.object,
   /**
-   * Marker layout property object, that is passed to the MlImageMarkerLayer responsible for drawing the position marker.
-   * Use any available layout property from layer type "symbol".
-   * https://maplibre.org/maplibre-gl-js-docs/style-spec/layers/#symbol
+   * position circle paint property object, that is passed to the MlGeoJsonLayer responsible for drawing the accuracy circle.
+   * Use any available paint prop from layer type "fill".
+   * https://maplibre.org/maplibre-gl-js-docs/style-spec/layers/#fill
    */
-  markerLayout: PropTypes.object,
-  /**
-   * Replace the default marker image with a custom one.
-   */
-  markerImage: PropTypes.string,
+  circlePaint: PropTypes.object,
 };
 export default MlFollowGps;

@@ -910,6 +910,7 @@ function useMapState(props) {
   useEffect(function () {
     var _componentId = componentId.current;
     return function () {
+      // cleanup all event listeners
       if (mapRef.current) {
         mapRef.current.cleanup(_componentId);
         mapRef.current = undefined;
@@ -928,7 +929,8 @@ function useMapState(props) {
     mapRef.current = mapContext.getMap(props.mapId);
 
     if (props !== null && props !== void 0 && (_props$watch = props.watch) !== null && _props$watch !== void 0 && _props$watch.viewport) {
-      setViewport(mapRef.current.wrapper.viewportState);
+      setViewport(mapRef.current.wrapper.viewportState); // register viewportchange event handler
+
       mapRef.current.wrapper.on("viewportchange", function () {
         var _mapRef$current;
 
@@ -938,7 +940,8 @@ function useMapState(props) {
           setViewport((_mapRef$current2 = mapRef.current) === null || _mapRef$current2 === void 0 ? void 0 : _mapRef$current2.wrapper.viewportState);
         }
       }, componentId.current);
-    }
+    } // register layerchange event handler
+
 
     if (props !== null && props !== void 0 && (_props$watch2 = props.watch) !== null && _props$watch2 !== void 0 && _props$watch2.layers) {
       var _props$filter3, _props$filter4;
@@ -1001,15 +1004,18 @@ function useMap(props) {
     mapId: props.mapId,
     watch: {
       viewport: false,
-      layers: true,
+      layers: props.waitForLayer ? true : false,
       sources: false
+    },
+    filter: {
+      includeBaseLayers: true
     }
   });
   var initializedRef = useRef(false);
   var mapRef = useRef(undefined);
   var componentId = useRef(v4());
 
-  var _useState = useState(undefined),
+  var _useState = useState(false),
       _useState2 = _slicedToArray(_useState, 2),
       mapIsReady = _useState2[0],
       setMapIsReady = _useState2[1];
@@ -1651,66 +1657,6 @@ MlGeoJsonLayer.propTypes = {
   transitionTime: PropTypes.number
 };
 
-var MlImageMarkerLayer = function MlImageMarkerLayer(props) {
-  var mapHook = useMap({
-    mapId: props.mapId,
-    waitForLayer: props.insertBeforeLayer
-  });
-  var layerInitializedRef = useRef(false);
-  var imageIdRef = useRef(props.imageId || "img_" + new Date().getTime());
-  var layerId = useRef(props.layerId || "MlImageMarkerLayer-" + mapHook.componentId);
-  useEffect(function () {
-    if (!mapHook.mapIsReady || mapHook.map && !mapHook.map.getLayer(layerId.current) || !props.options) return; // the MapLibre-gl instance (mapContext.map) is accessible here
-    // initialize the layer and add it to the MapLibre-gl instance or do something else with it
-
-    var key;
-
-    if (props.options.layout) {
-      for (key in props.options.layout) {
-        mapHook.map.setLayoutProperty(layerId.current, key, props.options.layout[key]);
-      }
-    }
-
-    if (props.options.paint) {
-      for (key in props.options.paint) {
-        mapHook.map.setPaintProperty(layerId.current, key, props.options.paint[key]);
-      }
-    }
-  }, [props.options, layerId.current, props.mapId]);
-  var addLayer = useCallback(function () {
-    var tmpOptions = _objectSpread2({
-      id: layerId.current,
-      layout: {}
-    }, props.options);
-
-    tmpOptions.layout["icon-image"] = imageIdRef.current;
-    mapHook.map.addLayer(tmpOptions, props.insertBeforeLayer, mapHook.componentId);
-  }, [props, mapHook.mapIsReady, mapHook.map]);
-  useEffect(function () {
-    if (!props.options || !mapHook.mapIsReady || layerInitializedRef.current) return;
-    layerInitializedRef.current = true;
-
-    if (props.imgSrc) {
-      mapHook.map.loadImage(props.imgSrc, function (error, image) {
-        if (error) throw error;
-        mapHook.map.addImage(imageIdRef.current, image, mapHook.componentId);
-      });
-    }
-
-    addLayer();
-  }, [mapHook.mapIsReady, mapHook.map, addLayer, props]);
-  useEffect(function () {
-    if (!mapHook.mapIsReady || mapHook.map && !mapHook.map.getLayer(layerId.current) || !props.options) {
-      return;
-    }
-
-    mapHook.map.getSource(layerId.current).setData(props.options.source.data);
-  }, [props.options.source.data, props]);
-  return /*#__PURE__*/React__default.createElement(React__default.Fragment, null);
-};
-
-var marker = "b556faa3bc6829d2.png";
-
 /**
  * Adds a button that makes the map follow the users GPS position using
  * navigator.geolocation.watchPosition if activated
@@ -1737,8 +1683,6 @@ var MlFollowGps = function MlFollowGps(props) {
       geoJson = _useState4[0],
       setGeoJson = _useState4[1];
 
-  var watchIdRef = useRef(undefined);
-
   var _useState5 = useState(false),
       _useState6 = _slicedToArray(_useState5, 2),
       locationAccessDenied = _useState6[0],
@@ -1749,17 +1693,14 @@ var MlFollowGps = function MlFollowGps(props) {
       accuracyGeoJson = _useState8[0],
       setAccuracyGeoJson = _useState8[1];
 
-  useEffect(function () {
-    return function () {
-      if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = undefined;
-      }
-    };
-  }, []);
   var getLocationSuccess = useCallback(function (pos) {
     if (!mapHook.map) return;
-    mapHook.map.setCenter([pos.coords.longitude, pos.coords.latitude]);
+    mapHook.map.flyTo({
+      center: [pos.coords.longitude, pos.coords.latitude],
+      zoom: 18,
+      speed: 1,
+      curve: 1
+    });
     var geoJsonPoint = point([pos.coords.longitude, pos.coords.latitude]);
     setGeoJson(geoJsonPoint);
     setAccuracyGeoJson(circle(geoJsonPoint, pos.coords.accuracy / 1000));
@@ -1774,33 +1715,31 @@ var MlFollowGps = function MlFollowGps(props) {
     if (!mapHook.map) return;
 
     if (isFollowed) {
-      watchIdRef.current = navigator.geolocation.watchPosition(getLocationSuccess, getLocationError);
-    } else {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+      var _watchId = navigator.geolocation.watchPosition(getLocationSuccess, getLocationError);
+
+      return function () {
+        navigator.geolocation.clearWatch(_watchId);
+      };
     }
   }, [isFollowed, getLocationSuccess]);
   return /*#__PURE__*/React__default.createElement(React__default.Fragment, null, isFollowed && geoJson && /*#__PURE__*/React__default.createElement(MlGeoJsonLayer, {
     geojson: accuracyGeoJson,
     type: "fill",
     paint: _objectSpread2({
-      "fill-color": "#ee7700",
-      "fill-opacity": 0.5
+      "fill-color": "#cbd300",
+      "fill-opacity": 0.3
     }, props.accuracyPaint),
-    insertBeforeLayer: "MlFollowGpsMarker"
-  }), isFollowed && geoJson && /*#__PURE__*/React__default.createElement(MlImageMarkerLayer, {
-    layerId: "MlFollowGpsMarker",
-    options: {
-      type: "symbol",
-      source: {
-        type: "geojson",
-        data: geoJson
-      },
-      layout: _objectSpread2({
-        "icon-size": 0.1,
-        "icon-offset": [0, -340]
-      }, props.markerLayout)
-    },
-    imgSrc: props.markerImage || marker
+    insertBeforeLayer: props.insertBeforeLayer
+  }), isFollowed && geoJson && /*#__PURE__*/React__default.createElement(MlGeoJsonLayer, {
+    geojson: geoJson,
+    type: "circle",
+    paint: _objectSpread2({
+      "circle-color": "#009ee0",
+      "circle-radius": 5,
+      "circle-stroke-color": "#fafaff",
+      "circle-stroke-width": 1
+    }, props.circlePaint),
+    insertBeforeLayer: props.insertBeforeLayer
   }), /*#__PURE__*/React__default.createElement(Button, {
     sx: _objectSpread2({
       zIndex: 1002,
@@ -1865,16 +1804,11 @@ MlFollowGps.propTypes = {
   accuracyPaint: PropTypes.object,
 
   /**
-   * Marker layout property object, that is passed to the MlImageMarkerLayer responsible for drawing the position marker.
-   * Use any available layout property from layer type "symbol".
-   * https://maplibre.org/maplibre-gl-js-docs/style-spec/layers/#symbol
+   * position circle paint property object, that is passed to the MlGeoJsonLayer responsible for drawing the accuracy circle.
+   * Use any available paint prop from layer type "fill".
+   * https://maplibre.org/maplibre-gl-js-docs/style-spec/layers/#fill
    */
-  markerLayout: PropTypes.object,
-
-  /**
-   * Replace the default marker image with a custom one.
-   */
-  markerImage: PropTypes.string
+  circlePaint: PropTypes.object
 };
 
 var nmMap = {
@@ -2062,6 +1996,64 @@ MlCreatePdfButton.propTypes = {
    * Id of the target MapLibre instance in mapContext
    */
   mapId: PropTypes.string
+};
+
+var MlImageMarkerLayer = function MlImageMarkerLayer(props) {
+  var mapHook = useMap({
+    mapId: props.mapId,
+    waitForLayer: props.insertBeforeLayer
+  });
+  var layerInitializedRef = useRef(false);
+  var imageIdRef = useRef(props.imageId || "img_" + new Date().getTime());
+  var layerId = useRef(props.layerId || "MlImageMarkerLayer-" + mapHook.componentId);
+  useEffect(function () {
+    if (!mapHook.mapIsReady || mapHook.map && !mapHook.map.getLayer(layerId.current) || !props.options) return; // the MapLibre-gl instance (mapContext.map) is accessible here
+    // initialize the layer and add it to the MapLibre-gl instance or do something else with it
+
+    var key;
+
+    if (props.options.layout) {
+      for (key in props.options.layout) {
+        mapHook.map.setLayoutProperty(layerId.current, key, props.options.layout[key]);
+      }
+    }
+
+    if (props.options.paint) {
+      for (key in props.options.paint) {
+        mapHook.map.setPaintProperty(layerId.current, key, props.options.paint[key]);
+      }
+    }
+  }, [props.options, layerId.current, props.mapId]);
+  var addLayer = useCallback(function () {
+    var tmpOptions = _objectSpread2({
+      id: layerId.current,
+      layout: {}
+    }, props.options);
+
+    tmpOptions.layout["icon-image"] = imageIdRef.current;
+    mapHook.map.addLayer(tmpOptions, props.insertBeforeLayer, mapHook.componentId);
+  }, [props, mapHook.mapIsReady, mapHook.map]);
+  useEffect(function () {
+    if (!props.options || !mapHook.mapIsReady || layerInitializedRef.current) return;
+    layerInitializedRef.current = true;
+
+    if (props.imgSrc) {
+      mapHook.map.loadImage(props.imgSrc, function (error, image) {
+        if (error) throw error;
+        mapHook.map.addImage(imageIdRef.current, image, mapHook.componentId);
+      });
+    }
+
+    addLayer();
+  }, [mapHook.mapIsReady, mapHook.map, addLayer, props]);
+  useEffect(function () {
+    if (!mapHook.mapIsReady || mapHook.map && !mapHook.map.getLayer(layerId.current) || !props.options) {
+      return;
+    }
+
+    mapHook.map.getSource(layerId.current).setData(props.options.source.data);
+  }, [props.options.source.data, props]);
+  return /*#__PURE__*/React__default.createElement(React__default.Fragment, null);
 };
 
 function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }

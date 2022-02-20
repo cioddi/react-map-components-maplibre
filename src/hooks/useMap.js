@@ -11,8 +11,11 @@ function useMap(props) {
     mapId: props.mapId,
     watch: {
       viewport: false,
-      layers: true,
+      layers: props.waitForLayer ? true : false,
       sources: false,
+    },
+    filter: {
+      includeBaseLayers: true,
     },
   });
 
@@ -21,7 +24,7 @@ function useMap(props) {
 
   const componentId = useRef(uuidv4());
 
-  const [mapIsReady, setMapIsReady] = useState(undefined);
+  const [mapIsReady, setMapIsReady] = useState(false);
 
   useEffect(() => {
     let _componentId = componentId.current;
@@ -39,7 +42,8 @@ function useMap(props) {
   useEffect(() => {
     if (!mapContext.mapExists(props.mapId) || initializedRef.current) return;
 
-    //check if insertBeforeLayer exists
+    // check if waitForLayer (string, layer id of the layer this hook is supposed to wait for)
+    // exists as layer in the MapLibre instance
     if (props.waitForLayer) {
       let layerFound = false;
 
@@ -57,7 +61,7 @@ function useMap(props) {
     initializedRef.current = true;
     mapRef.current = mapContext.getMap(props.mapId);
     setMapIsReady(true);
-  }, [mapContext.mapIds, mapState.layers, mapContext, props.mapId]);
+  }, [mapContext.mapIds, mapState.layers, mapContext, props.waitForLayer, props.mapId]);
 
   return {
     map: mapRef.current,

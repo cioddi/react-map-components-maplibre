@@ -92,10 +92,16 @@ const MlNavigationCompass = (props) => {
   useEffect(() => {
     if (!mapHook.map) return;
 
-    mapHook.map.on("rotate", function () {
+    let _updateBearing = () => {
       setBearing(Math.round(mapHook.map.getBearing()));
-    });
-    setBearing(Math.round(mapHook.map.getBearing()));
+    };
+
+    mapHook.map.on("rotate", _updateBearing, mapHook.componentId);
+    _updateBearing();
+
+    return () => {
+      mapHook.map.off("rotate", _updateBearing);
+    };
   }, [mapHook.map, props.mapId]);
 
   return (

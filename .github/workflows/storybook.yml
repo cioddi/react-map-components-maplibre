@@ -2,7 +2,7 @@ name: Build and deploy storybook
 on:
   push:
     branches:
-      - main
+      - feature/maplibre-1.0
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest

@@ -19,6 +19,7 @@ jobs:
           yarn build-storybook
           npx sb extract ./docs-build ./docs-build/stories.json
           ls -al ./docs-build
+          cat ./docs-build/index.html
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@3.6.2
         with:

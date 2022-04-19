@@ -36,25 +36,25 @@ interface MlWmsLoaderProps {
   /**
    * WMS URL
    */
-  url: string;
+  url?: string;
   /**
    * Id of the target MapLibre instance in mapContext
    */
-  mapId: string;
+  mapId?: string;
   /**
    * URL parameters that will be used in the getCapabilities request
    */
-  urlParameters: object;
+  urlParameters?: any;
   /**
    * URL parameters that will be added when requesting WMS capabilities
    */
-  wmsUrlParameters: object;
+  wmsUrlParameters?: any;
   /**
    * URL parameters that will be added when requesting tiles
    */
-  layerUrlParameters: object;
-  lngLat: LngLat;
-  idPrefix: string;
+  layerUrlParameters?: any;
+  lngLat?: LngLat;
+  idPrefix?: string;
 };
 
 /**
@@ -147,8 +147,8 @@ const MlWmsLoader = (props: MlWmsLoaderProps) => {
       let _gfiUrl : string | undefined = getFeatureInfoUrl;
       let _gfiUrlParts;
       if (_gfiUrl?.indexOf?.("?") !== -1) {
-        _gfiUrlParts = props.url.split("?");
-        _gfiUrl = _gfiUrlParts[0];
+        _gfiUrlParts = props?.url?.split("?");
+        _gfiUrl = _gfiUrlParts?.[0];
       }
       let _urlParamsFromUrl = new URLSearchParams(_gfiUrlParts?.[1]);
 

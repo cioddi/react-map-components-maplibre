@@ -1,15 +1,14 @@
 {
-  "name": "MlScaleReference",
-  "title": "Reference scale",
-  "description": "",
-  "i18n": {
-    "de": {
-      "title": "Maßstabsreferenz",
-      "description": ""
-    }
-  },
-  "tags": [],
-  "category": "",
-  "type": "component",
-  "price": 0
+	"name": "MlScaleReference",
+	"title": "Reference scale",
+	"description": "Default scale bar.",
+	"i18n": {
+		"de": {
+			"title": "Maßstabsreferenz",
+			"description": "Standard Maßstabsleiste"
+		}
+	},
+	"tags": ["Map add-on"],
+	"category": "add-ons",
+	"type": "component"
 }

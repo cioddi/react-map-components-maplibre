@@ -1,15 +1,20 @@
-import React, { useRef, useEffect } from "react";
-import useMap from "../../hooks/useMap";
-import PropTypes from "prop-types";
+import React, { useRef, useEffect, useCallback } from 'react';
+import useMap from '../../hooks/useMap';
+import { LayerSpecification } from 'maplibre-gl';
+import { VectorSourceSpecification } from 'maplibre-gl';
 
-interface MlVectorTileLayerProps {
-  mapId?: string;
-  insertBeforeLayer?: string;
-  layerId?: string;
-  sourceOptions?: any;
-  url?: string;
-  layers?: any;
-}
+export type ExtendedLayerSpecification = LayerSpecification & {
+	masterVisible?: boolean;
+};
+
+export type MlVectorTileLayerProps = {
+	mapId?: string;
+	insertBeforeLayer?: string;
+	layerId?: string;
+	sourceOptions?: VectorSourceSpecification;
+	url?: string;
+	layers: ExtendedLayerSpecification[];
+};
 
 /**
  * Adds a vector-tile source and 0...n vector-tile-layers to the MapLibre instance referenced by
@@ -18,122 +23,126 @@ interface MlVectorTileLayerProps {
  * @component
  */
 const MlVectorTileLayer = (props: MlVectorTileLayerProps) => {
-  const mapHook = useMap({
-    mapId: props.mapId,
-    waitForLayer: props.insertBeforeLayer,
-  });
+	const mapHook = useMap({
+		mapId: props.mapId,
+		waitForLayer: props.insertBeforeLayer,
+	});
 
-  const layerIdsRef = useRef({});
-  const layerId = useRef(
-    props.layerId || "MlVectorTileLayer-" + mapHook.componentId
-  );
-  const layerPaintConfsRef = useRef({});
-  const layerLayoutConfsRef = useRef({});
-  const initializedRef = useRef(false);
+	const layerId = useRef(props.layerId || 'MlVectorTileLayer-' + mapHook.componentId);
+	const layerPaintConfsRef = useRef({});
+	const layerLayoutConfsRef = useRef({});
+	const initializedRef = useRef(false);
 
-  useEffect(() => {
-    if (!mapHook.map || initializedRef.current) return;
+	const createLayers = useCallback(() => {
+		if (!mapHook.map) return;
 
-    initializedRef.current = true;
+		initializedRef.current = true;
 
-    // Add the new layer to the openlayers instance once it is available
-    mapHook.map.addSource(
-      layerId.current,
-      {
-        type: "vector",
-        tiles: [props.url],
-        tileSize: 512,
-        attribution: "",
-        ...props.sourceOptions,
-      },
-      mapHook.componentId
-    );
+		if (mapHook.map.map.getSource(layerId.current)) {
+			mapHook.cleanup();
+		}
 
-    for (let key in props.layers) {
-      let _layerId = layerId.current + "_" + key;
-      layerIdsRef.current[key] = _layerId;
+		// Add the new layer to the maplibre instance once it is available
+		if (!mapHook.map.map.getSource(layerId.current)) {
+			mapHook.map.addSource(
+				layerId.current,
+				{
+					type: 'vector',
+					tiles: [props.url || ''],
+					attribution: '',
+					minzoom: 0,
+					maxzoom: 14,
+					...props.sourceOptions,
+				},
+				mapHook.componentId
+			);
+		}
 
-      mapHook.map.addLayer(
-        {
-          id: _layerId,
-          source: layerId.current,
-          type: "line",
-          minzoom: 0,
-          maxzoom: 22,
-          layout: {},
-          paint: {
-            "line-opacity": 0.5,
-            "line-color": "rgb(80, 80, 80)",
-            "line-width": 2,
-          },
-          ...props.layers[key],
-        },
-        props.insertBeforeLayer,
-        mapHook.componentId
-      );
-      layerPaintConfsRef.current[key] = JSON.stringify(props.layers[key].paint);
-      layerLayoutConfsRef.current[key] = JSON.stringify(
-        props.layers[key].layout
-      );
-    }
-  }, [mapHook.map, props]);
+		props.layers.forEach((layer) => {
+			if (!mapHook.map) return;
+			mapHook.map.addLayer(
+				{
+					source: layerId.current,
+					minzoom: 0,
+					maxzoom: 22,
+					layout: {},
+					paint: {
+						// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+						// @ts-ignore
+						'line-opacity': 0.5,
+						'line-color': 'rgb(80, 80, 80)',
+						'line-width': 2,
+					},
+					...layer,
+				},
+				props.insertBeforeLayer,
+				mapHook.componentId
+			);
+			layerPaintConfsRef.current[layer.id] = JSON.stringify(layer.paint);
+			layerLayoutConfsRef.current[layer.id] = JSON.stringify(layer.layout);
 
-  useEffect(() => {
-    if (!mapHook.map || !initializedRef.current) return;
-    // initialize the layer and add it to the MapLibre-gl instance or do something else with it
-    for (var key in props.layers) {
-      if (mapHook.map.map.getLayer(layerIdsRef.current[key])) {
-        // update changed paint property
-        let layerPaintConfString = JSON.stringify(props.layers[key].paint);
+			// recreate layer if style has changed
+			mapHook.map.on(
+				'styledata',
+				() => {
+					if (initializedRef.current && !mapHook.map?.map.getSource(layerId.current)) {
+						console.log('Recreate Layer ' + layerId.current);
+						createLayers();
+					}
+				},
+				mapHook.componentId
+			);
+		});
+	}, [mapHook.map, props]);
 
-        if (layerPaintConfString !== layerPaintConfsRef.current[key]) {
-          for (let paintKey in props.layers[key].paint) {
-            mapHook.map.map.setPaintProperty(
-              layerIdsRef.current[key],
-              paintKey,
-              props.layers[key].paint[paintKey]
-            );
-          }
-        }
-        layerPaintConfsRef.current[key] = layerPaintConfString;
+	const updateLayers = useCallback(() => {
+		if (!initializedRef.current) return;
 
-        // update changed layout property
-        let layerLayoutConfString = JSON.stringify(props.layers[key].layout);
+		props.layers.forEach((layer) => {
+			if (!mapHook.map) return;
+			if (mapHook.map.map.getLayer(layer.id)) {
+				// update changed paint property
+				const layerPaintConfString = JSON.stringify(layer.paint);
 
-        if (layerLayoutConfString !== layerLayoutConfsRef.current[key]) {
-          for (let layoutKey in props.layers[key].layout) {
-            mapHook.map.map.setLayoutProperty(
-              layerIdsRef.current[key],
-              layoutKey,
-              props.layers[key].layout[layoutKey]
-            );
-          }
-        }
-        layerLayoutConfsRef.current[key] = layerLayoutConfString;
-      }
-    }
-  }, [props.layers, mapHook.map]);
+				if (layerPaintConfString !== layerPaintConfsRef.current[layer.id]) {
+					for (const paintKey in layer.paint) {
+						mapHook.map.map.setPaintProperty(layer.id, paintKey, layer.paint[paintKey]);
+					}
+				}
+				layerPaintConfsRef.current[layer.id] = layerPaintConfString;
 
-  return <></>;
-};
+				// update changed layout property
+				const layerLayoutConfString = JSON.stringify(layer.layout);
 
-MlVectorTileLayer.propTypes = {
-  /**
-   * Id of the target MapLibre instance in mapContext
-   */
-  mapId: PropTypes.string,
-  /**
-   * Options object that will be used as first parameter on the MapLibreGl.addSource call see MapLibre source options documentation.
-   */
-  sourceOptions: PropTypes.object,
-  /**
-   * Object that hold layers
-   */
-  layers: PropTypes.object,
-  /**
-   * String of the URL of a wms layer
-   */
-  url: PropTypes.string,
+				if (layerLayoutConfString !== layerLayoutConfsRef.current[layer.id]) {
+					for (const layoutKey in layer.layout) {
+						mapHook.map.map.setLayoutProperty(layer.id, layoutKey, layer.layout[layoutKey]);
+					}
+				}
+				layerLayoutConfsRef.current[layer.id] = layerLayoutConfString;
+			}
+		});
+	}, [mapHook.map, props.layers]);
+
+	// initial layer creation
+	useEffect(() => {
+		if (initializedRef.current) return;
+		createLayers();
+	}, [createLayers]);
+
+	// if layers get removed or added
+	useEffect(() => {
+		if (!mapHook.map || !initializedRef.current) return;
+		createLayers();
+	}, [props.layers.length, mapHook.map]);
+
+	// on layout/paint update
+	useEffect(() => {
+		if (!mapHook.map || !initializedRef.current) return;
+		updateLayers();
+	}, [props.layers, mapHook.map]);
+
+	return <></>;
 };
 
 export default MlVectorTileLayer;
